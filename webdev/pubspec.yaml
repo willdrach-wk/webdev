@@ -50,4 +50,6 @@ executables:
 
 dependency_overrides:
   dwds:
-    path: ../dwds
+    git:
+      url: git://github.com/willdrach-wk/webdev.git
+      path: dwds
