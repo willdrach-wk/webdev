@@ -3,9 +3,12 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:build_daemon/data/build_status.dart';
+import 'package:dwds/src/debugging/webkit_debugger.dart';
 import 'package:dwds/src/utilities/shared.dart';
+import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
 import 'package:shelf/shelf.dart';
@@ -13,6 +16,7 @@ import 'package:webkit_inspection_protocol/webkit_inspection_protocol.dart';
 
 import 'src/connections/app_connection.dart';
 import 'src/connections/debug_connection.dart';
+import 'src/debugging/sources.dart';
 import 'src/handlers/asset_handler.dart';
 import 'src/handlers/dev_handler.dart';
 import 'src/handlers/injected_handler.dart';
@@ -124,5 +128,36 @@ class Dwds {
       devHandler,
       enableDebugging,
     );
+  }
+}
+
+class Coverage {
+  LogWriter _logWriter;
+  Sources _sources;
+
+  Coverage(this._logWriter, this._sources);
+
+  Future start() async {
+    return await _sources.startPreciseCoverage();
+  }
+
+  Future collect() {
+    return _sources.takePreciseCoverage();
+  }
+
+  static Future<Coverage> init(LogWriter logWriter, String chromeUrl, int assetServerPort, String target, String applicationHost, int applicationPort) async {
+    final assetHandler = AssetHandler(assetServerPort, target, applicationHost, applicationPort);
+
+    // set up debugger connection
+    final response = await http.get(chromeUrl + '/json');
+    final url = jsonDecode(response.body)[0]['webSocketDebuggerUrl'] as String;
+
+    final wipConnection = await WipConnection.connect(url);
+    final wipDebugger = WipDebugger(wipConnection);
+    final remoteDebugger = WebkitDebugger(wipDebugger);
+
+    final sources = Sources(assetHandler, remoteDebugger, logWriter);
+
+    return Coverage(logWriter, sources);
   }
 }

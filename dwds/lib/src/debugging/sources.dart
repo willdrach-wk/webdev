@@ -39,6 +39,9 @@ class Sources {
   /// Paths to black box in the Chrome debugger.
   final _pathsToBlackBox = {'/packages/stack_trace/'};
 
+  /// Determines whether or not we've already enabled the profile
+  bool _profilerEnabled = false;
+
   /// Use `_readAssetOrNull` instead of using this directly, as it handles
   /// logging unsuccessful responses.
   final AssetHandler _assetHandler;
@@ -125,6 +128,26 @@ class Sources {
     }
     _sourceToTokenPosTable[serverPath] = tokenPosTable;
     return tokenPosTable;
+  }
+
+  Future startProfiler() async {
+    if (_profilerEnabled) {
+      return;
+    }
+    _profilerEnabled = true;
+    await _remoteDebugger.sendCommand('Profiler.enable');
+  }
+
+  Future startPreciseCoverage() async {
+    await startProfiler();
+    await _remoteDebugger.sendCommand('Profiler.startPreciseCoverage');
+  }
+
+  Future takePreciseCoverage() async {
+    await startProfiler();
+    final rawCoverage = await _remoteDebugger.sendCommand('Profiler.takePreciseCoverage');
+    final jsCoverage = rawCoverage.result;
+    print('JS Coverage: $jsCoverage');
   }
 
   void _clearCacheFor(WipScript script) {
